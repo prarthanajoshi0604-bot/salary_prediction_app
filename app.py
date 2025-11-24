@@ -9,6 +9,7 @@ try:
         model = pickle.load(file)
 except FileNotFoundError:
     st.error("Error: 'Student_model.pkl' not found. Please ensure the model file is in the same directory.")
+    # Stop the app execution if the model can't be loaded
     st.stop()
 except Exception as e:
     st.error(f"Error loading model: {e}")
@@ -26,7 +27,17 @@ st.markdown("---")
 st.header("Employee Details")
 
 # Assuming Education_Level is categorical (e.g., encoded 1, 2, 3)
-# You might need to adjust these ranges/defaults based on your training data
+# Mapping for better user experience, assuming 1, 2, 3, 4 are the encoded values
+EDUCATION_MAP = {
+    "High School": 1,
+    "Bachelors": 2,
+    "Masters": 3,
+    "PhD/Doctorate": 4
+}
+EDUCATION_OPTIONS = list(EDUCATION_MAP.keys())
+
+
+# Input for Experience (first feature in your model)
 experience = st.slider(
     "Years of Experience", 
     min_value=0.0, 
@@ -35,6 +46,7 @@ experience = st.slider(
     step=0.5
 )
 
+# Input for Age (third feature in your model)
 age = st.number_input(
     "Age (Years)", 
     min_value=18, 
@@ -43,33 +55,39 @@ age = st.number_input(
     step=1
 )
 
-education_level = st.selectbox(
-    "Education Level Encoding", 
-    options=[1, 2, 3, 4], # Example: 1=Bachelors, 2=Masters, 3=PhD, etc.
-    index=1,
-    help="Select the numerical encoding used for education level in the model training."
+# Input for Education Level (second feature in your model, using the map)
+selected_education = st.selectbox(
+    "Education Level", 
+    options=EDUCATION_OPTIONS,
+    index=1, # Default to Bachelors
+    help="Select the educational background."
 )
+
+# Convert the selected string back to the numerical encoding the model expects
+education_level_encoded = EDUCATION_MAP[selected_education]
 
 
 # --- 3. Prediction Logic ---
-if st.button("Predict Salary"):
-    # Create the feature vector (must be in the same order as model training: Experience, Education_Level, Age)
-    features = np.array([[experience, education_level, age]])
+if st.button("Predict Salary", type="primary"):
+    
+    # Create the feature vector 
+    # CRITICAL: The order MUST match the model's training order: Experience, Education_Level, Age
+    features = np.array([[experience, education_level_encoded, age]])
     
     # Make prediction
     try:
+        # Predict the salary
         prediction = model.predict(features)[0]
         
         st.markdown("---")
         st.subheader("Prediction Result")
         
-        # Format the output (adjust currency and formatting as needed)
-        # Using a simple integer format for demonstration
-        st.success(f"The predicted salary is: **${prediction:,.2f}**")
+        # Display the formatted result
+        st.success(f"The estimated salary is: **${prediction:,.2f}**")
         st.balloons()
         
     except Exception as e:
         st.error(f"An error occurred during prediction: {e}")
 
 st.markdown("---")
-st.caption("Model trained using scikit-learn.")
+st.caption("Model trained using scikit-learn (Features: Experience, Education_Level, Age)")
