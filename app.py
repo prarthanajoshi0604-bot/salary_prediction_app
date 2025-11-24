@@ -2,92 +2,154 @@ import streamlit as st
 import pickle
 import numpy as np
 
-# --- 1. Load the Model ---
-# Ensure 'Student_model.pkl' is in the same directory as this app.py file
-try:
-    with open('Student_model.pkl', 'rb') as file:
-        model = pickle.load(file)
-except FileNotFoundError:
-    st.error("Error: 'Student_model.pkl' not found. Please ensure the model file is in the same directory.")
-    # Stop the app execution if the model can't be loaded
-    st.stop()
-except Exception as e:
-    st.error(f"Error loading model: {e}")
-    st.stop()
-
-
-# --- 2. Streamlit UI Elements ---
-st.set_page_config(page_title="Salary Predictor", layout="centered")
-
-st.title("💰 Simple Salary Prediction App")
-st.markdown("Enter the required details to get an estimated salary prediction.")
-st.markdown("---")
-
-# Input fields for the features
-st.header("Employee Details")
-
-# Assuming Education_Level is categorical (e.g., encoded 1, 2, 3)
-# Mapping for better user experience, assuming 1, 2, 3, 4 are the encoded values
-EDUCATION_MAP = {
-    "High School": 1,
-    "Bachelors": 2,
-    "Masters": 3,
-    "PhD/Doctorate": 4
-}
-EDUCATION_OPTIONS = list(EDUCATION_MAP.keys())
-
-
-# Input for Experience (first feature in your model)
-experience = st.slider(
-    "Years of Experience", 
-    min_value=0.0, 
-    max_value=30.0, 
-    value=5.0, 
-    step=0.5
+# --- Configuration and Styling ---
+st.set_page_config(
+    page_title="Student Performance Predictor",
+    page_icon="🎓",
+    layout="wide",
+    initial_sidebar_state="auto"
 )
 
-# Input for Age (third feature in your model)
-age = st.number_input(
-    "Age (Years)", 
-    min_value=18, 
-    max_value=65, 
-    value=30, 
-    step=1
-)
+# Custom CSS for a clean and attractive look
+st.markdown("""
+    <style>
+    .main-header {
+        font-size: 3em !important;
+        font-weight: 700;
+        color: #2E86C1; /* A nice blue color */
+        text-align: center;
+        margin-bottom: 0.5em;
+    }
+    .subheader {
+        font-size: 1.5em !important;
+        color: #5D6D7E;
+        text-align: center;
+        margin-bottom: 2em;
+    }
+    .stButton>button {
+        background-color: #2E86C1;
+        color: white;
+        font-weight: bold;
+        padding: 10px 20px;
+        border-radius: 10px;
+        transition: 0.3s;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .stButton>button:hover {
+        background-color: #1A5276;
+        box-shadow: 0 6px 10px rgba(0, 0, 0, 0.2);
+    }
+    .prediction-box {
+        background-color: #D6EAF8; /* Light blue background */
+        border-radius: 15px;
+        padding: 20px;
+        text-align: center;
+        margin-top: 30px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# Input for Education Level (second feature in your model, using the map)
-selected_education = st.selectbox(
-    "Education Level", 
-    options=EDUCATION_OPTIONS,
-    index=1, # Default to Bachelors
-    help="Select the educational background."
-)
-
-# Convert the selected string back to the numerical encoding the model expects
-education_level_encoded = EDUCATION_MAP[selected_education]
-
-
-# --- 3. Prediction Logic ---
-if st.button("Predict Salary", type="primary"):
-    
-    # Create the feature vector 
-    # CRITICAL: The order MUST match the model's training order: Experience, Education_Level, Age
-    features = np.array([[experience, education_level_encoded, age]])
-    
-    # Make prediction
+# --- Model Loading ---
+@st.cache_resource
+def load_model():
+    """Loads the pickled model file."""
     try:
-        # Predict the salary
-        prediction = model.predict(features)[0]
-        
-        st.markdown("---")
-        st.subheader("Prediction Result")
-        
-        # Display the formatted result
-        st.success(f"The estimated salary is: **${prediction:,.2f}**")
-        st.balloons()
-        
+        with open('Student_model.pkl', 'rb') as file:
+            model = pickle.load(file)
+        return model
+    except FileNotFoundError:
+        st.error("Model file 'Student_model.pkl' not found. Please ensure it is in the same directory as app.py.")
+        return None
     except Exception as e:
-        st.error(f"An error occurred during prediction: {e}")
+        st.error(f"Error loading the model: {e}. This might be due to an incompatible scikit-learn version.")
+        st.info("Try ensuring your installed scikit-learn version matches the one used to create the model.")
+        return None
 
-st.markdown("---")
-st.caption("Model trained using scikit-learn (Features: Experience, Education_Level, Age)")
+model = load_model()
+
+# --- Application UI and Logic ---
+
+if model is not None:
+    
+    st.markdown('<p class="main-header">🎓 Student Performance Predictor</p>', unsafe_allow_html=True)
+    st.markdown('<p class="subheader">Estimate the final score based on student profile features.</p>', unsafe_allow_html=True)
+
+    st.write("---")
+
+    # Input Section
+    st.header("👤 Enter Student Profile Details")
+
+    # Use columns for a neat, multi-column layout for inputs
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        # Assuming Experience is in years (can be fractional)
+        experience = st.number_input(
+            "Experience (Years in Program/Field)",
+            min_value=0.0,
+            max_value=30.0,
+            value=2.0,
+            step=0.5,
+            format="%.1f",
+            help="The student's professional or academic experience."
+        )
+
+    with col2:
+        # Education Level: Assuming an ordinal scale (e.g., 1=High School, 2=Associate, 3=Bachelor's, 4=Master's, 5=PhD)
+        education_level = st.selectbox(
+            "Education Level (Ordinal Scale)",
+            options=[1, 2, 3, 4, 5],
+            index=2, # Default to 3 (Bachelor's or equivalent)
+            format_func=lambda x: f"Level {x}",
+            help="Higher number represents a higher level of education (e.g., 3=Bachelor's, 5=PhD)."
+        )
+
+    with col3:
+        # Age
+        age = st.number_input(
+            "Age (Years)",
+            min_value=18,
+            max_value=100,
+            value=25,
+            step=1,
+            help="The student's current age."
+        )
+
+    st.write("")
+    st.write("---")
+
+    # Prediction Button and Logic
+    if st.button("Calculate Predicted Score"):
+        
+        # Prepare the input data for the model
+        # The feature names in the model are: Experience, Education_Level, Age
+        features = np.array([[experience, education_level, age]])
+
+        try:
+            # Make prediction
+            prediction = model.predict(features)[0]
+
+            # Display results in an attractive box
+            st.markdown(
+                f"""
+                <div class="prediction-box">
+                    <h2>🧠 Prediction Result</h2>
+                    <p style='font-size: 20px; color: #154360;'>
+                        Based on the profile entered, the estimated performance score is:
+                    </p>
+                    <div style='font-size: 4em; font-weight: 900; color: #2C3E50;'>
+                        {prediction:.2f}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True
+            )
+            
+            # Optional: Add context to the prediction
+            st.info(f"Note: This score is a prediction from a Linear Regression model, which estimates a continuous outcome variable (like a final grade or performance index).")
+
+        except Exception as e:
+            st.error(f"An error occurred during prediction: {e}")
+            st.warning("Please check the console for detailed error information.")
+
+    st.markdown("<footer><p style='text-align: center; color: #AAB7B8; margin-top: 50px;'>Powered by Streamlit & Scikit-learn</p></footer>", unsafe_allow_html=True)
